@@ -2,6 +2,7 @@ package view.service;
 
 import java.awt.Component;
 import java.awt.Dimension;
+import java.awt.GridLayout; // Import mới
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
 import java.awt.event.MouseAdapter;
@@ -14,7 +15,7 @@ import javax.swing.JDialog;
 import javax.swing.JFrame;
 import javax.swing.JLabel;
 import javax.swing.JOptionPane;
-import javax.swing.JPanel;
+import javax.swing.JPanel; // Import mới
 import javax.swing.JScrollPane;
 import javax.swing.JTable;
 import javax.swing.JTextField;
@@ -24,19 +25,16 @@ import dao.UsedServiceDAO;
 import model.Service;
 import model.UsedService;
 
-// Đây là một JDialog (cửa sổ pop-up)
 public class AddServiceDialog extends JDialog implements ActionListener {
     private JTextField txtKey;
     private JButton btnSearch, btnCancel;
     private JTable tblResult;
     private ArrayList<Service> listService;
     private int bookedRoomID;
-    private JFrame parentFrame; // Frame cha (SearchOccupiedRoomFrm)
+    private JFrame parentFrame; 
 
     public AddServiceDialog(JFrame parent, int bookedRoomID) {
-        // 'true' nghĩa là modal (chặn tương tác với cửa sổ cha)
         super(parent, "Add Service to Room", true); 
-        
         this.parentFrame = parent;
         this.bookedRoomID = bookedRoomID;
         listService = new ArrayList<>();
@@ -44,14 +42,11 @@ public class AddServiceDialog extends JDialog implements ActionListener {
         JPanel pnMain = new JPanel();
         pnMain.setLayout(new BoxLayout(pnMain, BoxLayout.Y_AXIS));
         pnMain.add(Box.createRigidArea(new Dimension(0, 10)));
-
         JLabel lblHome = new JLabel("Search and Select a Service");
         lblHome.setAlignmentX(Component.CENTER_ALIGNMENT);
         lblHome.setFont(lblHome.getFont().deriveFont(16.0f));
         pnMain.add(lblHome);
         pnMain.add(Box.createRigidArea(new Dimension(0, 10)));
-
-        // Panel Tìm kiếm
         JPanel pnSearch = new JPanel();
         pnSearch.setLayout(new BoxLayout(pnSearch, BoxLayout.X_AXIS));
         pnSearch.add(new JLabel("Service Name: "));
@@ -62,8 +57,6 @@ public class AddServiceDialog extends JDialog implements ActionListener {
         pnSearch.add(btnSearch);
         pnMain.add(pnSearch);
         pnMain.add(Box.createRigidArea(new Dimension(0, 10)));
-
-        // Panel Kết quả
         JPanel pnResult = new JPanel();
         pnResult.setLayout(new BoxLayout(pnResult, BoxLayout.Y_AXIS));
         tblResult = new JTable();
@@ -83,52 +76,78 @@ public class AddServiceDialog extends JDialog implements ActionListener {
         
         pnResult.add(scrollPane);
         pnMain.add(pnResult);
-        
-        // Nút Cancel
         btnCancel = new JButton("Cancel");
         btnCancel.setAlignmentX(Component.CENTER_ALIGNMENT);
         btnCancel.addActionListener(this);
         pnMain.add(Box.createRigidArea(new Dimension(0, 10)));
         pnMain.add(btnCancel);
         pnMain.add(Box.createRigidArea(new Dimension(0, 10)));
-        
         this.setContentPane(pnMain);
         this.setSize(500, 350);
-        this.setLocationRelativeTo(parent); // Hiển thị giữa frame cha
+        this.setLocationRelativeTo(parent);
     }
     
-    // Hàm xử lý khi nhấn vào một dịch vụ
+    // ====================== BẮT ĐẦU SỬA ĐỔI ======================
+    /**
+     * Hàm xử lý khi nhấn vào một dịch vụ.
+     * Mở một pop-up tùy chỉnh để nhập Số lượng và Giảm giá.
+     */
     private void addService(Service service) {
-        // 1. Hỏi số lượng
-        String sQuantity = JOptionPane.showInputDialog(this, 
-                "Enter quantity for: " + service.getName(), "1");
-        int quantity;
-        try {
-            quantity = Integer.parseInt(sQuantity);
-            if(quantity <= 0) throw new NumberFormatException();
-        } catch (NumberFormatException e) {
-            JOptionPane.showMessageDialog(this, "Invalid quantity.");
-            return;
-        }
+        // 1. Tạo một JPanel tùy chỉnh
+        JPanel panel = new JPanel(new GridLayout(2, 2, 5, 5));
+        JTextField txtQuantity = new JTextField("1");
+        JTextField txtSellOff = new JTextField("0.0");
         
-        // 2. Tạo đối tượng UsedService
-        UsedService us = new UsedService();
-        us.setQuantity(quantity);
-        us.setPrice(service.getPrice()); // Lấy giá gốc
-        us.setSellOff(0); // Mặc định không giảm giá
-        
-        // 3. Gọi DAO
-        UsedServiceDAO usDAO = new UsedServiceDAO();
-        if(usDAO.addUsedService(us, bookedRoomID, service.getId())) {
-            JOptionPane.showMessageDialog(this, "Service added!");
+        panel.add(new JLabel("Quantity:"));
+        panel.add(txtQuantity);
+        panel.add(new JLabel("Discount (%):"));
+        panel.add(txtSellOff);
+
+        // 2. Hiển thị JPanel trong JOptionPane
+        int result = JOptionPane.showConfirmDialog(this, panel, 
+                "Enter Details for: " + service.getName(), 
+                JOptionPane.OK_CANCEL_OPTION, 
+                JOptionPane.PLAIN_MESSAGE);
+
+        // 3. Xử lý khi người dùng nhấn OK
+        if (result == JOptionPane.OK_OPTION) {
+            int quantity;
+            float sellOff;
             
-            // Không cần gọi refreshData() như ở CheckoutFrm
+            // 4. Lấy và kiểm tra dữ liệu
+            try {
+                quantity = Integer.parseInt(txtQuantity.getText());
+                if(quantity <= 0) throw new NumberFormatException("Qty must be > 0");
+            } catch (NumberFormatException e) {
+                JOptionPane.showMessageDialog(this, "Invalid quantity. It must be a whole number greater than 0.");
+                return;
+            }
             
-            this.dispose(); // Đóng pop-up
-        } else {
-            JOptionPane.showMessageDialog(this, "Error adding service.");
+            try {
+                sellOff = Float.parseFloat(txtSellOff.getText());
+                if(sellOff < 0 || sellOff > 100) throw new NumberFormatException("Discount must be 0-100");
+            } catch (NumberFormatException e) {
+                JOptionPane.showMessageDialog(this, "Invalid discount. It must be a number between 0 and 100.");
+                return;
+            }
+
+            // 5. Tạo đối tượng UsedService
+            UsedService us = new UsedService();
+            us.setQuantity(quantity);
+            us.setPrice(service.getPrice()); // Lấy giá gốc
+            us.setSellOff(sellOff); // Dùng giá trị giảm giá mới
+            
+            // 6. Gọi DAO
+            UsedServiceDAO usDAO = new UsedServiceDAO();
+            if(usDAO.addOrUpdateUsedService(us, bookedRoomID, service.getId())) {
+                JOptionPane.showMessageDialog(this, "Service added!");
+                this.dispose(); // Đóng pop-up
+            } else {
+                JOptionPane.showMessageDialog(this, "Error adding service.");
+            }
         }
     }
+    // ====================== KẾT THÚC SỬA ĐỔI ======================
 
     @Override
     public void actionPerformed(ActionEvent e) {

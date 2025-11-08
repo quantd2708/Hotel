@@ -56,19 +56,44 @@ public class UsedServiceDAO extends DAO {
      * @param serviceID
      * @return
      */
-    public boolean addUsedService(UsedService us, int bookedRoomID, int serviceID) {
-        String sql = "INSERT INTO tblUsedService(quantity, price, sellOff, bookedRoomID, serviceID) "
-                + "VALUES(?,?,?,?,?)";
+    public boolean addOrUpdateUsedService(UsedService us, int bookedRoomID, int serviceID) {
+        // 1. Thử tìm bản ghi hiện có
+        String sqlCheck = "SELECT ID, quantity FROM tblUsedService WHERE bookedRoomID = ? AND serviceID = ?";
+        String sqlUpdate = "UPDATE tblUsedService SET quantity = ?, price = ?, sellOff = ? WHERE ID = ?";
+        String sqlInsert = "INSERT INTO tblUsedService(quantity, price, sellOff, bookedRoomID, serviceID) VALUES(?,?,?,?,?)";
+
         try {
-            PreparedStatement ps = con.prepareStatement(sql);
-            ps.setInt(1, us.getQuantity());
-            ps.setFloat(2, us.getPrice());
-            ps.setFloat(3, us.getSellOff());
-            ps.setInt(4, bookedRoomID);
-            ps.setInt(5, serviceID);
-            
-            ps.executeUpdate();
+            PreparedStatement psCheck = con.prepareStatement(sqlCheck);
+            psCheck.setInt(1, bookedRoomID);
+            psCheck.setInt(2, serviceID);
+            ResultSet rs = psCheck.executeQuery();
+
+            if (rs.next()) {
+                // ĐÃ TỒN TẠI: Thực hiện UPDATE
+                int existingID = rs.getInt("ID");
+                int existingQuantity = rs.getInt("quantity");
+
+                int newQuantity = existingQuantity + us.getQuantity();
+
+                PreparedStatement psUpdate = con.prepareStatement(sqlUpdate);
+                psUpdate.setInt(1, newQuantity);
+                psUpdate.setFloat(2, us.getPrice()); // Cập nhật giá
+                psUpdate.setFloat(3, us.getSellOff()); // Cập nhật giảm giá
+                psUpdate.setInt(4, existingID);
+                psUpdate.executeUpdate();
+
+            } else {
+                // CHƯA TỒN TẠI: Thực hiện INSERT
+                PreparedStatement psInsert = con.prepareStatement(sqlInsert);
+                psInsert.setInt(1, us.getQuantity());
+                psInsert.setFloat(2, us.getPrice());
+                psInsert.setFloat(3, us.getSellOff());
+                psInsert.setInt(4, bookedRoomID);
+                psInsert.setInt(5, serviceID);
+                psInsert.executeUpdate();
+            }
             return true;
+
         } catch (Exception e) {
             e.printStackTrace();
             return false;

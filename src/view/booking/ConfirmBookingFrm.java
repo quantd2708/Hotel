@@ -20,21 +20,29 @@ import javax.swing.JTable;
 import javax.swing.JTextField;
 import javax.swing.table.DefaultTableModel;
 import dao.BookingDAO;
+import dao.BillDAO; // Import BillDAO
 import java.util.ArrayList;
 import model.BookedRoom;
 import model.Booking;
 import model.Client;
 import model.User;
+import model.Bill; // Import Bill model
 import view.user.SellerHomeFrm;
+
+// Import JDialog mới
+import view.booking.TakeDepositDialog;
 
 public class ConfirmBookingFrm extends JFrame implements ActionListener {
     private User user;
     private Booking booking;
     private JTextField txtSaleoff, txtNote;
-    private JButton btnConfirm, btnCancel;
-    private JLabel lblTotalAmount;
+    private JButton btnConfirm, btnCancel, btnTakeDeposit;
+    private JLabel lblTotalAmount, lblTotalPaid;
     private JFrame parentFrame;
     private JFrame homeFrame;
+    
+    private BookingDAO bookingDAO;
+    private BillDAO billDAO; 
     
     private SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd");
 
@@ -44,6 +52,9 @@ public class ConfirmBookingFrm extends JFrame implements ActionListener {
         this.booking = booking;
         this.parentFrame = parentFrame;
         this.homeFrame = homeFrame;
+        
+        this.bookingDAO = new BookingDAO();
+        this.billDAO = new BillDAO();
         
         JPanel pnMain = new JPanel();
         pnMain.setLayout(new BoxLayout(pnMain, BoxLayout.Y_AXIS));
@@ -71,12 +82,19 @@ public class ConfirmBookingFrm extends JFrame implements ActionListener {
         pnMain.add(Box.createRigidArea(new Dimension(0, 20)));
 
         // Nút bấm
-        JPanel pnButtons = new JPanel(new GridLayout(1, 2, 10, 0));
+        JPanel pnButtons = new JPanel(new GridLayout(1, 3, 10, 0));
         btnConfirm = new JButton("Confirm Booking");
         btnConfirm.addActionListener(this);
+        
+        btnTakeDeposit = new JButton("Take Deposit");
+        btnTakeDeposit.addActionListener(this);
+        btnTakeDeposit.setEnabled(false); // Bị vô hiệu hóa lúc đầu
+        
         btnCancel = new JButton("Cancel");
         btnCancel.addActionListener(this);
+        
         pnButtons.add(btnConfirm);
+        pnButtons.add(btnTakeDeposit);
         pnButtons.add(btnCancel);
         pnMain.add(pnButtons);
 
@@ -84,6 +102,8 @@ public class ConfirmBookingFrm extends JFrame implements ActionListener {
         this.setSize(800, 600);
         this.setLocationRelativeTo(null);
         this.setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
+        
+        updateTotalAmount();
     }
 
     private JLabel createTitleLabel(String title) {
@@ -133,54 +153,107 @@ public class ConfirmBookingFrm extends JFrame implements ActionListener {
     }
     
     private JPanel createDetailsPanel() {
-        JPanel panel = new JPanel(new GridLayout(3, 2, 5, 5));
+        JPanel panel = new JPanel(new GridLayout(4, 2, 5, 5));
         panel.add(new JLabel("Overall Saleoff (%):"));
         txtSaleoff = new JTextField("0.0");
+        txtSaleoff.addActionListener(e -> updateTotalAmount());
         panel.add(txtSaleoff);
         
         panel.add(new JLabel("Note:"));
         txtNote = new JTextField();
         panel.add(txtNote);
         
-        lblTotalAmount = new JLabel("Total Amount: " + String.format("%.0f VND", booking.getTotal()));
+        lblTotalAmount = new JLabel("Total Amount: 0 VND");
         lblTotalAmount.setFont(new Font(lblTotalAmount.getFont().getName(), Font.BOLD, 14));
         panel.add(lblTotalAmount);
         
+        lblTotalPaid = new JLabel("Total Paid: 0 VND");
+        lblTotalPaid.setFont(new Font(lblTotalPaid.getFont().getName(), Font.BOLD, 14));
+        panel.add(lblTotalPaid);
+        
         return panel;
+    }
+    
+    private void updateTotalAmount() {
+        try {
+            booking.setSaleoff(Float.parseFloat(txtSaleoff.getText()));
+        } catch (NumberFormatException e) {
+            booking.setSaleoff(0);
+        }
+        lblTotalAmount.setText("Total Amount: " + String.format("%.0f", booking.getTotal()));
     }
 
     @Override
     public void actionPerformed(ActionEvent e) {
         if (e.getSource() == btnConfirm) {
-            // Lấy thông tin cuối cùng
-            try {
-                booking.setSaleoff(Float.parseFloat(txtSaleoff.getText()));
-            } catch (NumberFormatException ex) {
-                JOptionPane.showMessageDialog(this, "Saleoff must be a number.");
-                return;
-            }
-            booking.setNote(txtNote.getText());
-            booking.setBookedDate(new Date()); // Ngày hiện tại
-
-            // Gọi DAO
-            BookingDAO bd = new BookingDAO();
-            if (bd.addBooking(booking)) {
-                JOptionPane.showMessageDialog(this, "Booking successful!");
-                homeFrame.setVisible(true);
-                this.dispose();
-                parentFrame.dispose();
-            } else {
-                JOptionPane.showMessageDialog(this, "Error: Booking failed. One or more rooms might be unavailable. Please try again.");
-                // Quay lại màn hình tìm phòng
-                homeFrame.setVisible(true);
-                this.dispose();
-                parentFrame.dispose();
-            }
-
+            actionConfirmBooking();
+        } else if (e.getSource() == btnTakeDeposit) {
+            // ====================== SỬA ĐỔI TẠI ĐÂY ======================
+            actionTakeDeposit();
+            // ==================== KẾT THÚC SỬA ĐỔI ====================
         } else if (e.getSource() == btnCancel) {
-            // Quay về màn hình seller home
             homeFrame.setVisible(true);
             this.dispose();
+            parentFrame.dispose(); 
         }
     }
+    
+    private void actionConfirmBooking() {
+        try {
+            booking.setSaleoff(Float.parseFloat(txtSaleoff.getText()));
+        } catch (NumberFormatException ex) {
+            JOptionPane.showMessageDialog(this, "Saleoff must be a number.");
+            return;
+        }
+        booking.setNote(txtNote.getText());
+        booking.setBookedDate(new Date());
+
+        if (bookingDAO.addBooking(booking)) {
+            JOptionPane.showMessageDialog(this, "Booking successful! Booking ID: " + booking.getId());
+            btnConfirm.setEnabled(false);
+        
+            // ====================== SỬA ĐỔI TẠI ĐÂY ======================
+            btnTakeDeposit.setEnabled(true); // Kích hoạt nút đặt cọc
+            // ==================== KẾT THÚC SỬA ĐỔI ====================
+            
+            btnCancel.setText("Finish");
+            
+        } else {
+            JOptionPane.showMessageDialog(this, "Error: Booking failed. One or more rooms might be unavailable. Please try again.");
+            homeFrame.setVisible(true);
+            this.dispose();
+            parentFrame.dispose();
+        }
+    }
+    
+    // ====================== SỬA ĐỔI TẠI ĐÂY ======================
+    /**
+     * Mở JDialog chuyên dụng để nhập tiền cọc.
+     */
+    private void actionTakeDeposit() {
+        // 'this' là ConfirmBookingFrm
+        // Mở JDialog mới, truyền booking (đã có ID) và user (người tạo)
+        TakeDepositDialog dialog = new TakeDepositDialog(this, booking, user); 
+        dialog.setVisible(true);
+        // Code sẽ dừng ở đây cho đến khi JDialog (TakeDepositDialog) được đóng
+    }
+    
+    /**
+     * Hàm này được TakeDepositDialog gọi sau khi lưu cọc thành công
+     * để cập nhật lại giao diện.
+     * @param newDepositAmount Số tiền vừa cọc
+     */
+    public void updateTotalPaid(float newDepositAmount) {
+        float currentPaid = 0;
+        try {
+            // Lấy số tiền đã trả hiện tại từ JLabel
+            currentPaid = Float.parseFloat(lblTotalPaid.getText().replaceAll("[^\\d.]", ""));
+        } catch (Exception e) {
+            // Bỏ qua nếu có lỗi (ví dụ: text rỗng)
+        }
+        
+        currentPaid += newDepositAmount;
+        lblTotalPaid.setText("Total Paid: " + String.format("%.0f VND", currentPaid));
+    }
+    // ==================== KẾT THÚC SỬA ĐỔI ====================
 }
