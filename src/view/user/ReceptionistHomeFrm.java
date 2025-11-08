@@ -16,9 +16,9 @@ import model.User;
 import view.booking.SearchFreeRoomFrm; // Import luồng đặt phòng
 import view.booking.SearchCheckinBookingFrm;
 import view.checkout.SearchActiveBookingFrm;
-
+import view.service.SearchOccupiedRoomFrm;
 public class ReceptionistHomeFrm extends JFrame implements ActionListener {
-    private JButton btnWalkInBooking, btnCheckin, btnCheckout, btnLogout;
+    private JButton btnWalkInBooking, btnCheckin, btnCheckout, btnManageService, btnLogout; 
     private User user;
 
     public ReceptionistHomeFrm(User user) {
@@ -63,6 +63,11 @@ public class ReceptionistHomeFrm extends JFrame implements ActionListener {
         btnCheckout.addActionListener(this);
         listPane.add(btnCheckout);
         
+        listPane.add(Box.createRigidArea(new Dimension(0, 10)));
+        btnManageService = new JButton("Add Used Service");
+        btnManageService.setAlignmentX(Component.CENTER_ALIGNMENT);
+        btnManageService.addActionListener(this);
+        listPane.add(btnManageService);
         // Nút 4: Đăng xuất
         btnLogout = new JButton("Logout");
         btnLogout.setAlignmentX(Component.CENTER_ALIGNMENT);
@@ -91,8 +96,10 @@ public class ReceptionistHomeFrm extends JFrame implements ActionListener {
         else if (e.getSource() == btnCheckout) {
             (new SearchActiveBookingFrm(user)).setVisible(true);
             this.dispose();
-        }
-        else if (e.getSource() == btnLogout) {
+        }else if (e.getSource() == btnManageService) {
+        (new SearchOccupiedRoomFrm(user, this)).setVisible(true);
+        this.dispose();
+        }else if (e.getSource() == btnLogout) {
             (new LoginFrm()).setVisible(true);
             this.dispose();
         }
