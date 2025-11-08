@@ -1,0 +1,164 @@
+package view.room;
+import java.awt.Component;
+import java.awt.Dimension;
+import java.awt.event.ActionEvent;
+import java.awt.event.ActionListener;
+import java.awt.event.MouseAdapter;
+import java.awt.event.MouseEvent;
+import java.util.ArrayList;
+import javax.swing.Box;
+import javax.swing.BoxLayout;
+import javax.swing.JButton;
+import javax.swing.JFrame;
+import javax.swing.JLabel;
+import javax.swing.JOptionPane;
+import javax.swing.JPanel;
+import javax.swing.JScrollPane;
+import javax.swing.JTable;
+import javax.swing.JTextField;
+import javax.swing.table.DefaultTableModel;
+import dao.RoomDAO;
+import model.Room;
+import model.User;
+
+public class SearchRoomFrm extends JFrame implements ActionListener{
+    private ArrayList<Room> listRoom;
+    private JTextField txtKey;
+    private JButton btnSearch;
+    private JButton btnBack;
+    private JTable tblResult;
+    private User user;
+    private String mode; // "edit" hoặc "delete"
+    private SearchRoomFrm mainFrm;
+    
+    public SearchRoomFrm(User user, String mode){ // Sửa constructor
+        super("Search room to " + mode); // Tiêu đề động
+        this.user = user;
+        this.mode = mode; // Lưu lại chế độ
+        mainFrm = this;
+        listRoom = new ArrayList<Room>();
+        
+        JPanel pnMain = new JPanel();
+        pnMain.setSize(this.getSize().width-5, this.getSize().height-20);       
+        pnMain.setLayout(new BoxLayout(pnMain,BoxLayout.Y_AXIS));
+        pnMain.add(Box.createRigidArea(new Dimension(0,10)));
+        
+        JLabel lblHome = new JLabel("Search a room to " + mode); // Tiêu đề động
+        lblHome.setAlignmentX(Component.CENTER_ALIGNMENT);  
+        lblHome.setFont (lblHome.getFont ().deriveFont (20.0f));
+        pnMain.add(lblHome);
+        pnMain.add(Box.createRigidArea(new Dimension(0,20)));
+        
+        JPanel pn1 = new JPanel();
+        pn1.setLayout(new BoxLayout(pn1,BoxLayout.X_AXIS));
+        pn1.setSize(this.getSize().width-5, 20);
+        pn1.add(new JLabel("Room name: "));
+        txtKey = new JTextField();
+        pn1.add(txtKey);
+        btnSearch = new JButton("Search");
+        btnSearch.addActionListener(this);
+        pn1.add(btnSearch);
+        pnMain.add(pn1);
+        pnMain.add(Box.createRigidArea(new Dimension(0,10)));
+
+        JPanel pn2 = new JPanel();
+        pn2.setLayout(new BoxLayout(pn2,BoxLayout.Y_AXIS));     
+        tblResult = new JTable();
+        JScrollPane scrollPane= new  JScrollPane(tblResult);
+        tblResult.setFillsViewportHeight(false); 
+        scrollPane.setPreferredSize(new
+                   Dimension(scrollPane.getPreferredSize().width, 250));
+        
+        tblResult.addMouseListener(new MouseAdapter() {
+            public void mouseClicked(MouseEvent e) {
+                int column = tblResult.getColumnModel().
+                        getColumnIndexAtX(e.getX()); // get the coloum of the button
+                int row = e.getY()/tblResult.getRowHeight(); // get row 
+
+                // *Checking the row or column is valid or not
+                if (row < tblResult.getRowCount() && row >= 0 && 
+                        column < tblResult.getColumnCount() && column >= 0) {
+                    
+                    Room selectedRoom = listRoom.get(row);
+
+                    // Tùy theo 'mode' mà gọi hành động khác nhau
+                    if (mode.equals("edit")) {
+                        (new EditRoomFrm(user, selectedRoom)).setVisible(true);
+                        mainFrm.dispose();
+                    } else if (mode.equals("delete")) {
+                        int confirm = JOptionPane.showConfirmDialog(mainFrm,
+                                "Are you sure you want to delete room: " + selectedRoom.getName() + "?",
+                                "Confirm Deletion",
+                                JOptionPane.YES_NO_OPTION);
+                        
+                        if (confirm == JOptionPane.YES_OPTION) {
+                            RoomDAO rd = new RoomDAO();
+                            if (rd.deleteRoom(selectedRoom.getId())) {
+                                JOptionPane.showMessageDialog(mainFrm, "Room deleted successfully!");
+                                // Tải lại bảng sau khi xóa
+                                listRoom.remove(row);
+                                ((DefaultTableModel)tblResult.getModel()).removeRow(row);
+                            } else {
+                                JOptionPane.showMessageDialog(mainFrm, "Error: Room might be in use (referenced by a booking).");
+                            }
+                        }
+                    }
+                }
+            }
+        });
+
+        pn2.add(scrollPane);
+        pnMain.add(pn2);     
+        // --- THÊM KHỐI NÀY (Nút Back) ---
+        btnBack = new JButton("Back");
+        btnBack.setAlignmentX(Component.CENTER_ALIGNMENT);
+        btnBack.addActionListener(this);
+        pnMain.add(Box.createRigidArea(new Dimension(0, 10)));
+        pnMain.add(btnBack);
+        pnMain.add(Box.createRigidArea(new Dimension(0, 10)));
+        // --- KẾT THÚC THÊM ---
+        
+        this.add(pnMain);
+        this.setSize(600, 400); // Tăng chiều cao
+        this.setLocationRelativeTo(null);
+        this.setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
+    }
+
+    @Override
+    public void actionPerformed(ActionEvent e) {
+        JButton btnClicked = (JButton)e.getSource();
+        if(btnClicked.equals(btnSearch)){
+            // Sửa: Cho phép tìm kiếm rỗng để lấy tất cả
+            String key = txtKey.getText();
+            if(key == null) key = "";
+            
+            RoomDAO rd = new RoomDAO();
+            listRoom = rd.searchRoom(key.trim());
+
+            String[] columnNames = {"Id", "Name", "Type", "Price",
+                                         "Description"};
+            String[][] value = new String[listRoom.size()][5];
+            for(int i=0; i<listRoom.size(); i++){
+                value[i][0] = listRoom.get(i).getId() +"";
+                value[i][1] = listRoom.get(i).getName();
+                value[i][2] = listRoom.get(i).getType();
+                value[i][3] = listRoom.get(i).getPrice() +"";
+                value[i][4] = listRoom.get(i).getDes();
+            }
+            DefaultTableModel tableModel = 
+                    new DefaultTableModel(value, columnNames) {
+                @Override
+                public boolean isCellEditable(int row, int column) {
+                    //unable to edit cells
+                    return false;
+                }
+            };
+            tblResult.setModel(tableModel);
+        }else if (e.getSource() == btnBack) {
+            // Quay về ManageRoomFrm (chứ không phải ManagerHomeFrm)
+            (new ManageRoomFrm(user)).setVisible(true);
+            this.dispose();
+        }
+    }
+}
+
