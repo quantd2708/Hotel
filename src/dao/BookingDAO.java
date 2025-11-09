@@ -1,4 +1,6 @@
-    package dao;
+package dao;
+
+import static dao.DAO.con; // Đảm bảo bạn có dòng import này
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.Statement;
@@ -10,13 +12,12 @@ import model.Booking;
 import model.Client;
 import model.Room;
 
-    
-public class BookingDAO extends DAO{
+public class BookingDAO extends DAO {
 
     public BookingDAO() {
         super();
     }
-    
+
     /**
      * Insert a new booking into the database, including its booked rooms. 
      * All are added in a single transaction.
@@ -24,51 +25,55 @@ public class BookingDAO extends DAO{
      * @return
      */
     public boolean addBooking(Booking b) {
-        // Sửa tên cột CSDL
         String sqlAddBooking = "INSERT INTO tblBooking(UserID, clientID, bookingdate, sellOff, note) VALUES(?,?,?,?,?)";
-        String sqlAddBookedRoom = "INSERT INTO tblBookedRoom(tblBookingID, tblRoomID, checkin, checkout, price, sellOff, ischeckin)  VALUES(?,?,?,?,?,?,?)";String sqlCheckbookedRoom = "SELECT * FROM tblBookedRoom WHERE tblRoomID = ? AND checkout > ? AND checkin < ?";
+        
+        // ====================== SỬA LỖI CÚ PHÁP TẠI ĐÂY ======================
+        String sqlAddBookedRoom = "INSERT INTO tblBookedRoom(tblBookingID, tblRoomID, checkin, checkout, price, sellOff, ischeckin)  VALUES(?,?,?,?,?,?,?)";
+        String sqlCheckbookedRoom = "SELECT * FROM tblBookedRoom WHERE tblRoomID = ? AND checkout > ? AND checkin < ?";
+        // ==================== KẾT THÚC SỬA LỖI CÚ PHÁP ====================
+        
         SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
         boolean result = true;
         try {
             con.setAutoCommit(false);
             PreparedStatement ps = con.prepareStatement(sqlAddBooking,
-                                     Statement.RETURN_GENERATED_KEYS);
+                    Statement.RETURN_GENERATED_KEYS);
             ps.setInt(1, b.getCreator().getId());
             ps.setInt(2, b.getClient().getId());
             ps.setString(3, sdf.format(b.getBookedDate()));
             ps.setFloat(4, b.getSaleoff());
             ps.setString(5, b.getNote());
-            
-            ps.executeUpdate();         
+
+            ps.executeUpdate();
             //get id of the new inserted booking
             ResultSet generatedKeys = ps.getGeneratedKeys();
             if (generatedKeys.next()) {
                 b.setId(generatedKeys.getInt(1));
-                
+
                 //insert booked rooms
-                for(BookedRoom br: b.getBookedRoom()) {
+                for (BookedRoom br : b.getBookedRoom()) {
                     //check if the room is available at the period
                     ps = con.prepareStatement(sqlCheckbookedRoom);
                     ps.setInt(1, br.getRoom().getId());
                     ps.setString(2, sdf.format(br.getCheckin()));
                     ps.setString(3, sdf.format(br.getCheckout()));
-                    
+
                     ResultSet rs = ps.executeQuery();
-                    if(rs.next()) {//unavailable
+                    if (rs.next()) {//unavailable
                         result = false;
                         try {
                             con.rollback();
                             con.setAutoCommit(true);
-                        }catch(Exception ex) {
+                        } catch (Exception ex) {
                             result = false;
                             ex.printStackTrace();
                         }
                         return result;
                     }
-                    
+
                     //insert booked room
                     ps = con.prepareStatement(sqlAddBookedRoom,
-                                     Statement.RETURN_GENERATED_KEYS);
+                            Statement.RETURN_GENERATED_KEYS);
                     ps.setInt(1, b.getId());
                     ps.setInt(2, br.getRoom().getId());
                     ps.setString(3, sdf.format(br.getCheckin()));
@@ -76,8 +81,8 @@ public class BookingDAO extends DAO{
                     ps.setFloat(5, br.getPrice());
                     ps.setFloat(6, br.getSaleoff());
                     ps.setBoolean(7, br.isChecked());
-                    
-                    ps.executeUpdate();         
+
+                    ps.executeUpdate();
                     //get id of the new inserted booking
                     generatedKeys = ps.getGeneratedKeys();
                     if (generatedKeys.next()) {
@@ -85,28 +90,28 @@ public class BookingDAO extends DAO{
                     }
                 }
             }
-            
+
             con.commit(); // Hoàn tất transaction
-        }catch(Exception e) {
-            result = false;         
-            try {               
+        } catch (Exception e) {
+            result = false;
+            try {
                 con.rollback();
-            }catch(Exception ex) {
+            } catch (Exception ex) {
                 result = false;
                 ex.printStackTrace();
             }
             e.printStackTrace();
-        }finally {
-            try {               
+        } finally {
+            try {
                 con.setAutoCommit(true); // Trả về chế độ auto-commit
-            }catch(Exception ex) {
+            } catch (Exception ex) {
                 result = false;
                 ex.printStackTrace();
             }
         }
         return result;
-    }   
-    
+    }
+
     /**
      * get list of booking involved the room whose @idroom is given 
      * between @startDate and @endDate
@@ -115,23 +120,20 @@ public class BookingDAO extends DAO{
      * @param endDate
      * @return
      */
-    public ArrayList<Booking> getBookingOfRoom(int idroom, Date startDate, Date endDate){
+    public ArrayList<Booking> getBookingOfRoom(int idroom, Date startDate, Date endDate) {
         ArrayList<Booking> result = new ArrayList<Booking>();
-        
-        // ====================== SỬA LỖI TẠI ĐÂY ======================
-        // Cả 'a.sellOff' và 'b.sellOff' đều được viết hoa chữ 'O'
+
         String sql = "SELECT a.id as idbookedroom, GREATEST(a.checkin,?) as checkin, "
                 + "LEAST(a.checkout,?) as checkout, a.price, a.sellOff as roomsaleoff, "
                 + "b.id as idbooking, b.sellOff as bookingsaleoff,  c.id as idclient, "
                 + "c.fullName, c.address, c.idcard, c.tel  "
                 + "FROM tblBookedRoom a, tblBooking b, tblClient c "
-                + "WHERE a.tblRoomID = ? AND a.isCheckin = 1  AND a.checkout > ? " // Đã sửa a.ischeckin
+                + "WHERE a.tblRoomID = ? AND a.isCheckin = 1  AND a.checkout > ? "
                 + "AND a.checkin < ? AND b.id = a.tblBookingID "
                 + "AND c.id = b.clientID";
-        // ==================== KẾT THÚC SỬA LỖI ====================
 
         SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
-        try{
+        try {
             PreparedStatement ps = con.prepareStatement(sql);
             ps.setString(1, sdf.format(startDate));
             ps.setString(2, sdf.format(endDate));
@@ -140,10 +142,10 @@ public class BookingDAO extends DAO{
             ps.setString(5, sdf.format(endDate));
             ResultSet rs = ps.executeQuery();
 
-            while(rs.next()){
+            while (rs.next()) {
                 Booking b = new Booking();
                 b.setId(rs.getInt("idbooking"));
-                b.setSaleoff(rs.getFloat("bookingsaleoff")); // Tên alias 'bookingsaleoff' là đúng
+                b.setSaleoff(rs.getFloat("bookingsaleoff"));
                 //client
                 Client c = new Client();
                 c.setId(rs.getInt("idclient"));
@@ -153,19 +155,20 @@ public class BookingDAO extends DAO{
                 b.setClient(c);
                 //booked room
                 BookedRoom br = new BookedRoom();
-                br.setId(rs.getInt("idbookedroom"));                   
-                br.setSaleoff(rs.getFloat("roomsaleoff")); // Tên alias 'roomsaleoff' là đúng
+                br.setId(rs.getInt("idbookedroom"));
+                br.setSaleoff(rs.getFloat("roomsaleoff"));
                 br.setPrice(rs.getFloat("price"));
                 br.setCheckin(rs.getTimestamp("checkin"));
-                br.setCheckout(rs.getTimestamp("checkout"));   
+                br.setCheckout(rs.getTimestamp("checkout"));
                 b.getBookedRoom().add(br);
                 result.add(b);
             }
-        }catch(Exception e){
+        } catch (Exception e) {
             e.printStackTrace();
-        }   
+        }
         return result;
     }
+
     /**
      * Tìm kiếm các booking dựa trên tên khách hàng.
      * Chỉ retrieves các booking CHƯA BAO GIỜ check-in.
@@ -174,8 +177,6 @@ public class BookingDAO extends DAO{
      */
     public ArrayList<Booking> searchBookingByClient(String clientNameKey) {
         ArrayList<Booking> result = new ArrayList<>();
-        // SQL này join 2 bảng Booking và Client
-        // và loại trừ (NOT IN) tất cả booking nào đã có ít nhất 1 phòng check-in
         String sql = "SELECT b.ID, b.bookingDate, b.sellOff, b.note, "
                 + "c.ID AS clientID, c.fullName, c.idCard, c.tel "
                 + "FROM tblBooking b "
@@ -194,7 +195,7 @@ public class BookingDAO extends DAO{
                 Booking b = new Booking();
                 b.setId(rs.getInt("ID"));
                 b.setBookedDate(rs.getTimestamp("bookingDate"));
-                b.setSaleoff(rs.getFloat("sellOff")); // Khớp với CSDL
+                b.setSaleoff(rs.getFloat("sellOff"));
                 b.setNote(rs.getString("note"));
 
                 Client c = new Client();
@@ -214,12 +215,6 @@ public class BookingDAO extends DAO{
 
     /**
      * Hủy một booking (xóa tất cả các bản ghi liên quan trong một transaction).
-     * 1. Xóa tblUsedService (liên quan đến tblBookedRoom)
-     * 2. Xóa tblBill (liên quan đến tblBooking)
-     * 3. Xóa tblBookedRoom (liên quan đến tblBooking)
-     * 4. Xóa tblBooking
-     * @param bookingID ID của booking cần hủy.
-     * @return true nếu thành công, false nếu có lỗi.
      */
     public boolean cancelBooking(int bookingID) {
         String sqlGetBookedRoomIDs = "SELECT ID FROM tblBookedRoom WHERE tblBookingID = ?";
@@ -284,17 +279,14 @@ public class BookingDAO extends DAO{
             }
         }
     }
-    
+
     /**
      * Tìm kiếm các booking (đặt phòng) có lịch check-in (từ hôm nay trở về trước)
      * nhưng CHƯA check-in.
-     * @param key Từ khóa tìm kiếm
-     * @param searchType Loại tìm kiếm ("Name", "ID Card", "Phone")
-     * @return Danh sách các Booking thỏa mãn.
      */
     public ArrayList<Booking> searchBookingForCheckin(String key, String searchType) {
         ArrayList<Booking> result = new ArrayList<>();
-        
+
         String searchColumn;
         if (searchType.equalsIgnoreCase("ID Card")) {
             searchColumn = "c.idCard";
@@ -304,8 +296,6 @@ public class BookingDAO extends DAO{
             searchColumn = "c.fullName"; // Mặc định
         }
 
-        // SQL này tìm các Booking mà TỒN TẠI (EXISTS) ít nhất 1 BookedRoom
-        // có ngày checkin <= ngày hiện tại VÀ isCheckin = 0
         String sql = "SELECT DISTINCT b.ID, b.bookingDate, b.sellOff, b.note, "
                 + "c.ID AS clientID, c.fullName, c.idCard, c.tel "
                 + "FROM tblBooking b "
@@ -317,7 +307,7 @@ public class BookingDAO extends DAO{
                 + "  AND br.isCheckin = 0 "
                 + "  AND DATE(br.checkin) <= CURDATE()"
                 + ")";
-        
+
         try {
             PreparedStatement ps = con.prepareStatement(sql);
             ps.setString(1, "%" + key + "%");
@@ -348,8 +338,6 @@ public class BookingDAO extends DAO{
     /**
      * Lấy danh sách các phòng CẦN check-in (chưa checkin và đã đến hạn)
      * của một booking cụ thể.
-     * @param bookingID
-     * @return Danh sách các BookedRoom (đã join với Room).
      */
     public ArrayList<BookedRoom> getBookedRoomsForCheckin(int bookingID) {
         ArrayList<BookedRoom> result = new ArrayList<>();
@@ -360,25 +348,25 @@ public class BookingDAO extends DAO{
                 + "WHERE br.tblBookingID = ? "
                 + "AND br.isCheckin = 0 "
                 + "AND DATE(br.checkin) <= CURDATE()";
-        
+
         try {
             PreparedStatement ps = con.prepareStatement(sql);
             ps.setInt(1, bookingID);
             ResultSet rs = ps.executeQuery();
-            
-            while(rs.next()) {
+
+            while (rs.next()) {
                 BookedRoom br = new BookedRoom();
                 br.setId(rs.getInt("ID"));
                 br.setCheckin(rs.getTimestamp("checkin"));
                 br.setCheckout(rs.getTimestamp("checkout"));
                 br.setPrice(rs.getFloat("price"));
-                
+
                 Room r = new Room();
                 r.setId(rs.getInt("roomID"));
                 r.setName(rs.getString("name"));
                 r.setType(rs.getString("type"));
                 br.setRoom(r);
-                
+
                 result.add(br);
             }
         } catch (Exception e) {
@@ -386,11 +374,9 @@ public class BookingDAO extends DAO{
         }
         return result;
     }
-    
+
     /**
      * Thực hiện cập nhật trạng thái isCheckin = 1
-     * @param bookedRoomID
-     * @return true nếu thành công.
      */
     public boolean performCheckin(int bookedRoomID) {
         String sql = "UPDATE tblBookedRoom SET isCheckin = 1 WHERE ID = ?";
@@ -404,16 +390,13 @@ public class BookingDAO extends DAO{
             return false;
         }
     }
-    
+
     /**
      * Tìm kiếm các booking (đặt phòng) ĐANG Ở (đã checkin).
-     * @param key Từ khóa tìm kiếm
-     * @param searchType Loại tìm kiếm ("Name", "ID Card", "Phone")
-     * @return Danh sách các Booking thỏa mãn.
      */
     public ArrayList<Booking> searchActiveBooking(String key, String searchType) {
         ArrayList<Booking> result = new ArrayList<>();
-        
+
         String searchColumn;
         if (searchType.equalsIgnoreCase("ID Card")) {
             searchColumn = "c.idCard";
@@ -423,26 +406,23 @@ public class BookingDAO extends DAO{
             searchColumn = "c.fullName"; // Mặc định
         }
 
-        // Tìm các Booking mà TỒN TẠI (EXISTS) ít nhất 1 BookedRoom
-        // có isCheckin = 1 VÀ chưa có trong tblBill
         String sql = "SELECT DISTINCT b.ID, b.bookingDate, b.sellOff, b.note, "
                 + "c.ID AS clientID, c.fullName, c.idCard, c.tel "
                 + "FROM tblBooking b "
                 + "JOIN tblClient c ON b.clientID = c.ID "
                 + "WHERE " + searchColumn + " LIKE ? "
-                + "AND b.ID NOT IN (SELECT DISTINCT bookingID FROM tblBill) " // Chưa thanh toán
+                + "AND b.ID NOT IN (SELECT DISTINCT bookingID FROM tblBill WHERE paymentType != 'Deposit') " // Dòng đã sửa
                 + "AND EXISTS ("
                 + "  SELECT 1 FROM tblBookedRoom br "
                 + "  WHERE br.tblBookingID = b.ID "
                 + "  AND br.isCheckin = 1" // Đã check-in
                 + ")";
-        
+
         try {
             PreparedStatement ps = con.prepareStatement(sql);
             ps.setString(1, "%" + key + "%");
             ResultSet rs = ps.executeQuery();
             while (rs.next()) {
-                // ... (Code copy từ searchBookingForCheckin) ...
                 Booking b = new Booking();
                 b.setId(rs.getInt("ID"));
                 b.setBookedDate(rs.getTimestamp("bookingDate"));
@@ -473,26 +453,26 @@ public class BookingDAO extends DAO{
                 + "JOIN tblRoom r ON br.tblRoomID = r.ID "
                 + "WHERE br.tblBookingID = ? "
                 + "AND br.isCheckin = 1"; // Chỉ lấy phòng đã check-in
-        
+
         try {
             PreparedStatement ps = con.prepareStatement(sql);
             ps.setInt(1, bookingID);
             ResultSet rs = ps.executeQuery();
-            
-            while(rs.next()) {
+
+            while (rs.next()) {
                 BookedRoom br = new BookedRoom();
                 br.setId(rs.getInt("ID"));
                 br.setCheckin(rs.getTimestamp("checkin"));
                 br.setCheckout(rs.getTimestamp("checkout"));
                 br.setPrice(rs.getFloat("price"));
                 br.setSaleoff(rs.getFloat("sellOff"));
-                
+
                 Room r = new Room();
                 r.setId(rs.getInt("roomID"));
                 r.setName(rs.getString("name"));
                 r.setType(rs.getString("type"));
                 br.setRoom(r);
-                
+
                 result.add(br);
             }
         } catch (Exception e) {
@@ -500,50 +480,140 @@ public class BookingDAO extends DAO{
         }
         return result;
     }
-     /**
-    * Tìm kiếm các phòng ĐANG Ở (đã checkin, chưa checkout)
-    * dựa trên TÊN PHÒNG.
-    * @param roomNameKey Tên phòng
-    * @return Danh sách các BookedRoom thỏa mãn (đã join với Room).
-    */
-   public ArrayList<BookedRoom> searchOccupiedRooms(String roomNameKey) {
-       ArrayList<BookedRoom> result = new ArrayList<>();
 
-       // ====================== SỬA ĐỔI TẠI ĐÂY ======================
-       String sql = "SELECT br.ID, br.checkin, br.checkout, br.price, br.sellOff, "
-               + "r.ID AS roomID, r.name, r.type "
-               + "FROM tblBookedRoom br "
-               + "JOIN tblRoom r ON br.tblRoomID = r.ID "
-               + "WHERE br.isCheckin = 1 "                // (Đã check-in)
-               + "AND DATE(br.checkin) <= CURDATE() "   // (MỚI: check-in hôm nay hoặc quá khứ)
-               + "AND DATE(br.checkout) >= CURDATE() "  // (check-out hôm nay hoặc tương lai)
-               + "AND r.name LIKE ?";
-       // ==================== KẾT THÚC SỬA ĐỔI ====================
+    /**
+     * Tìm kiếm các phòng ĐANG Ở (đã checkin, chưa checkout)
+     * dựa trên TÊN PHÒNG.
+     */
+    public ArrayList<BookedRoom> searchOccupiedRooms(String roomNameKey) {
+        ArrayList<BookedRoom> result = new ArrayList<>();
 
-       try {
-           PreparedStatement ps = con.prepareStatement(sql);
-           ps.setString(1, "%" + roomNameKey + "%");
-           ResultSet rs = ps.executeQuery();
+        String sql = "SELECT br.ID, br.checkin, br.checkout, br.price, br.sellOff, "
+                + "r.ID AS roomID, r.name, r.type "
+                + "FROM tblBookedRoom br "
+                + "JOIN tblRoom r ON br.tblRoomID = r.ID "
+                + "WHERE br.isCheckin = 1 "
+                + "AND DATE(br.checkin) <= CURDATE() "
+                + "AND DATE(br.checkout) >= CURDATE() "
+                + "AND r.name LIKE ?";
 
-           while(rs.next()) {
-               BookedRoom br = new BookedRoom();
-               br.setId(rs.getInt("ID"));
-               br.setCheckin(rs.getTimestamp("checkin"));
-               br.setCheckout(rs.getTimestamp("checkout"));
-               br.setPrice(rs.getFloat("price"));
-               br.setSaleoff(rs.getFloat("sellOff"));
+        try {
+            PreparedStatement ps = con.prepareStatement(sql);
+            ps.setString(1, "%" + roomNameKey + "%");
+            ResultSet rs = ps.executeQuery();
 
-               Room r = new Room();
-               r.setId(rs.getInt("roomID"));
-               r.setName(rs.getString("name"));
-               r.setType(rs.getString("type"));
-               br.setRoom(r);
+            while (rs.next()) {
+                BookedRoom br = new BookedRoom();
+                br.setId(rs.getInt("ID"));
+                br.setCheckin(rs.getTimestamp("checkin"));
+                br.setCheckout(rs.getTimestamp("checkout"));
+                br.setPrice(rs.getFloat("price"));
+                br.setSaleoff(rs.getFloat("sellOff"));
 
-               result.add(br);
-           }
-       } catch (Exception e) {
-           e.printStackTrace();
-       }
-       return result;
-   } 
+                Room r = new Room();
+                r.setId(rs.getInt("roomID"));
+                r.setName(rs.getString("name"));
+                r.setType(rs.getString("type"));
+                br.setRoom(r);
+
+                result.add(br);
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+        return result;
+    }
+
+    /**
+     * Cập nhật lại ngày check-out thực tế cho một phòng (khi check-out sớm).
+     */
+    public boolean updateBookedRoomCheckout(int bookedRoomID, Date newCheckoutDate) {
+        String sql = "UPDATE tblBookedRoom SET checkout = ? WHERE ID = ?";
+        SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
+        try {
+            PreparedStatement ps = con.prepareStatement(sql);
+            ps.setString(1, sdf.format(newCheckoutDate));
+            ps.setInt(2, bookedRoomID);
+
+            int rowsAffected = ps.executeUpdate();
+            return (rowsAffected > 0);
+        } catch (Exception e) {
+            e.printStackTrace();
+            return false;
+        }
+    } // <-- DẤU NGOẶC ĐÚNG ĐỂ KẾT THÚC HÀM NÀY
+
+    /**
+     * Lấy lịch sử đặt phòng của một khách hàng.
+     */
+    public ArrayList<Booking> searchBookingsByClient(int clientID, Date startDate, Date endDate) {
+        ArrayList<Booking> result = new ArrayList<>();
+
+        String sqlBookings = "SELECT * FROM tblBooking WHERE clientID = ?";
+        if (startDate != null) {
+            sqlBookings += " AND bookingDate >= ?";
+        }
+        if (endDate != null) {
+            sqlBookings += " AND bookingDate <= DATE_ADD(?, INTERVAL 1 DAY)";
+        }
+        sqlBookings += " ORDER BY bookingDate DESC";
+
+        String sqlBookedRooms = "SELECT br.*, r.name AS roomName, r.type AS roomType "
+                + "FROM tblBookedRoom br "
+                + "JOIN tblRoom r ON br.tblRoomID = r.ID "
+                + "WHERE br.tblBookingID = ?";
+
+        SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd");
+
+        try {
+            PreparedStatement psBookings = con.prepareStatement(sqlBookings);
+            int paramIndex = 1;
+            psBookings.setInt(paramIndex++, clientID);
+            if (startDate != null) {
+                psBookings.setString(paramIndex++, sdf.format(startDate));
+            }
+            if (endDate != null) {
+                psBookings.setString(paramIndex++, sdf.format(endDate));
+            }
+
+            ResultSet rsBookings = psBookings.executeQuery();
+
+            while (rsBookings.next()) {
+                Booking b = new Booking();
+                b.setId(rsBookings.getInt("ID"));
+                b.setBookedDate(rsBookings.getTimestamp("bookingDate"));
+                b.setSaleoff(rsBookings.getFloat("sellOff"));
+                b.setNote(rsBookings.getString("note"));
+
+                PreparedStatement psRooms = con.prepareStatement(sqlBookedRooms);
+                psRooms.setInt(1, b.getId());
+                ResultSet rsRooms = psRooms.executeQuery();
+
+                ArrayList<BookedRoom> bookedRooms = new ArrayList<>();
+                while (rsRooms.next()) {
+                    BookedRoom br = new BookedRoom();
+                    br.setId(rsRooms.getInt("ID"));
+                    br.setCheckin(rsRooms.getTimestamp("checkin"));
+                    br.setCheckout(rsRooms.getTimestamp("checkout"));
+                    br.setPrice(rsRooms.getFloat("price"));
+                    br.setSaleoff(rsRooms.getFloat("sellOff"));
+                    br.setChecked(rsRooms.getInt("isCheckin") == 1);
+
+                    Room r = new Room();
+                    r.setId(rsRooms.getInt("tblRoomID"));
+                    r.setName(rsRooms.getString("roomName"));
+                    r.setType(rsRooms.getString("roomType"));
+                    br.setRoom(r);
+
+                    bookedRooms.add(br);
+                }
+                b.setBookedRoom(bookedRooms);
+
+                result.add(b);
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+        return result;
+    }
 }

@@ -6,6 +6,9 @@ import model.Bill;
 import model.Booking;
 import model.Client;
 import model.User;
+import java.util.ArrayList; // Đảm bảo bạn có import này
+import java.util.Date; // Đảm bảo bạn có import này
+import java.sql.Timestamp; // Đảm bảo bạn có import này
 
 public class BillDAO extends DAO {
 
@@ -71,7 +74,28 @@ public class BillDAO extends DAO {
         }
         return bill;
     }
-    
+
+    /**
+     * Lấy tổng số tiền đã thanh toán (bao gồm cả cọc) cho một booking.
+     * @param bookingID
+     * @return Tổng số tiền đã trả.
+     */
+    public float getTotalPaidForBooking(int bookingID) {
+        float totalPaid = 0;
+        String sql = "SELECT SUM(amount) AS total FROM tblBill WHERE bookingID = ?";
+        try {
+            PreparedStatement ps = con.prepareStatement(sql);
+            ps.setInt(1, bookingID);
+            ResultSet rs = ps.executeQuery();
+            if (rs.next()) {
+                totalPaid = rs.getFloat("total");
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+        return totalPaid;
+    }
+
     /**
      * Lưu hóa đơn (Bill) mới vào CSDL.
      * @param bill Đối tượng Bill chứa thông tin thanh toán
@@ -96,4 +120,51 @@ public class BillDAO extends DAO {
             return false;
         }
     }
+
+    /**
+     * Lấy TẤT CẢ các hóa đơn (cọc, thanh toán) cho một booking.
+     * Chỉ join với User (người tạo).
+     * @param bookingID
+     * @return một ArrayList các đối tượng Bill (chỉ chứa Creator).
+     */
+    public ArrayList<Bill> getAllBillsForBooking(int bookingID) {
+        ArrayList<Bill> result = new ArrayList<>();
+        // Lấy tất cả thông tin cần thiết, join với User để lấy tên người tạo
+        String sql = "SELECT "
+                + "b.ID AS billID, b.paymentDate, b.amount, b.paymentType, b.note AS billNote, "
+                + "u.ID AS userID, u.fullName AS userFullName, u.position "
+                + "FROM tblBill b "
+                + "JOIN tblUser u ON b.userID = u.ID "
+                + "WHERE b.bookingID = ? "
+                + "ORDER BY b.paymentDate ASC"; // Sắp xếp theo ngày
+
+        try {
+            PreparedStatement ps = con.prepareStatement(sql);
+            ps.setInt(1, bookingID);
+            ResultSet rs = ps.executeQuery();
+
+            // Dùng while để lấy TẤT CẢ các hóa đơn
+            while (rs.next()) {
+                Bill bill = new Bill();
+                bill.setId(rs.getInt("billID"));
+                bill.setPaymentDate(rs.getTimestamp("paymentDate"));
+                bill.setAmount(rs.getFloat("amount"));
+                bill.setPaymentType(rs.getString("paymentType"));
+                bill.setNote(rs.getString("billNote"));
+
+                User creator = new User();
+                creator.setId(rs.getInt("userID"));
+                creator.setName(rs.getString("userFullName"));
+                creator.setPosition(rs.getString("position"));
+                bill.setCreator(creator);
+
+                // Lưu ý: bill.getBooking() sẽ là null ở bước này
+                result.add(bill);
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+        return result;
+    }
+
 }

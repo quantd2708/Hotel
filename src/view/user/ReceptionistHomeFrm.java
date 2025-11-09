@@ -17,8 +17,11 @@ import view.booking.SearchFreeRoomFrm; // Import luồng đặt phòng
 import view.booking.SearchCheckinBookingFrm;
 import view.checkout.SearchActiveBookingFrm;
 import view.service.SearchOccupiedRoomFrm;
+import view.history.SearchHistoryClientFrm;
+
+
 public class ReceptionistHomeFrm extends JFrame implements ActionListener {
-    private JButton btnWalkInBooking, btnCheckin, btnCheckout, btnManageService, btnLogout; 
+    private JButton btnWalkInBooking, btnCheckin, btnCheckout, btnManageService, btnHistoricalBooking, btnLogout;
     private User user;
 
     public ReceptionistHomeFrm(User user) {
@@ -68,6 +71,12 @@ public class ReceptionistHomeFrm extends JFrame implements ActionListener {
         btnManageService.setAlignmentX(Component.CENTER_ALIGNMENT);
         btnManageService.addActionListener(this);
         listPane.add(btnManageService);
+        
+        listPane.add(Box.createRigidArea(new Dimension(0, 10)));
+        btnHistoricalBooking = new JButton("Historical Booking");
+        btnHistoricalBooking.setAlignmentX(Component.CENTER_ALIGNMENT);
+        btnHistoricalBooking.addActionListener(this);
+        listPane.add(btnHistoricalBooking);
         // Nút 4: Đăng xuất
         btnLogout = new JButton("Logout");
         btnLogout.setAlignmentX(Component.CENTER_ALIGNMENT);
@@ -97,8 +106,11 @@ public class ReceptionistHomeFrm extends JFrame implements ActionListener {
             (new SearchActiveBookingFrm(user)).setVisible(true);
             this.dispose();
         }else if (e.getSource() == btnManageService) {
-        (new SearchOccupiedRoomFrm(user, this)).setVisible(true);
-        this.dispose();
+            (new SearchOccupiedRoomFrm(user, this)).setVisible(true);
+            this.dispose();
+        }else if (e.getSource() == btnHistoricalBooking) {
+            (new SearchHistoryClientFrm(user, this)).setVisible(true);
+            this.dispose();
         }else if (e.getSource() == btnLogout) {
             (new LoginFrm()).setVisible(true);
             this.dispose();
