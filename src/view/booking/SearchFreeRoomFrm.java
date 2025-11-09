@@ -43,7 +43,7 @@ public class SearchFreeRoomFrm extends JFrame implements ActionListener {
         super("Search available rooms");
         this.user = user;
         this.homeFrame = homeFrame;
-        this.booking = new Booking(); // Khởi tạo booking mới
+        this.booking = new Booking();
         this.booking.setCreator(user);
         
         listAvailableRoom = new ArrayList<Room>();
@@ -111,7 +111,12 @@ public class SearchFreeRoomFrm extends JFrame implements ActionListener {
         JPanel pnSelected = new JPanel(new BorderLayout());
         pnSelected.add(new JLabel("Selected Rooms (Cart):"), BorderLayout.NORTH);
         tblSelectedRooms = new JTable();
-        String[] colSelected = {"Id", "Name", "Type", "Price"};
+        
+        // ====================== BẮT ĐẦU SỬA ĐỔI (1) ======================
+        // Thêm cột "SellOff (%)" vào bảng giỏ hàng
+        String[] colSelected = {"Id", "Name", "Price", "SellOff (%)"};
+        // ====================== KẾT THÚC SỬA ĐỔI (1) ======================
+        
         modelSelected = new DefaultTableModel(colSelected, 0) {
              @Override public boolean isCellEditable(int row, int column) { return false; }
         };
@@ -139,7 +144,7 @@ public class SearchFreeRoomFrm extends JFrame implements ActionListener {
         pnMain.add(Box.createRigidArea(new Dimension(0, 10)));
 
         this.add(pnMain);
-        this.setSize(850, 500); // Tăng kích thước
+        this.setSize(850, 500);
         this.setLocationRelativeTo(null);
         this.setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
     }
@@ -149,7 +154,9 @@ public class SearchFreeRoomFrm extends JFrame implements ActionListener {
         if (e.getSource() == btnSearch) {
             actionSearch();
         } else if (e.getSource() == btnAddRoom) {
-            actionAddRoom();
+            // ====================== BẮT ĐẦU SỬA ĐỔI (2) ======================
+            actionAddRoomWithDiscount(); // Đổi tên hàm
+            // ====================== KẾT THÚC SỬA ĐỔI (2) ======================
         } else if (e.getSource() == btnRemoveRoom) {
             actionRemoveRoom();
         } else if (e.getSource() == btnGoToClient) {
@@ -184,8 +191,6 @@ public class SearchFreeRoomFrm extends JFrame implements ActionListener {
                 JOptionPane.showMessageDialog(this, "No available rooms found for this period.");
             }
             
-            // Cập nhật JTable trái
-            // Xóa dữ liệu cũ
             modelAvailable.setRowCount(0);
             modelSelected.setRowCount(0);
             booking.getBookedRoom().clear();
@@ -200,7 +205,11 @@ public class SearchFreeRoomFrm extends JFrame implements ActionListener {
         }
     }
 
-    private void actionAddRoom() {
+    // ====================== BẮT ĐẦU SỬA ĐỔI (3) ======================
+    /**
+     * Hành động thêm phòng VÀ hỏi giảm giá.
+     */
+    private void actionAddRoomWithDiscount() {
         int row = tblAvailableRooms.getSelectedRow();
         if (row < 0) {
             JOptionPane.showMessageDialog(this, "Please select an available room to add.");
@@ -218,26 +227,45 @@ public class SearchFreeRoomFrm extends JFrame implements ActionListener {
         
         Room selectedRoom = listAvailableRoom.get(row);
         
+        // Mở Pop-up hỏi giảm giá
+        float sellOff = 0;
+        String sSellOff = JOptionPane.showInputDialog(this, 
+                "Enter discount (%) for " + selectedRoom.getName() + ":", "0.0");
+        
+        // Kiểm tra
+        try {
+            sellOff = Float.parseFloat(sSellOff);
+            if(sellOff < 0 || sellOff > 100) throw new NumberFormatException();
+        } catch (Exception ex) {
+            JOptionPane.showMessageDialog(this, "Invalid discount. Must be a number between 0-100. Defaulting to 0.");
+            sellOff = 0;
+        }
+        
         // Tạo một BookedRoom mới
         BookedRoom br = new BookedRoom();
         br.setRoom(selectedRoom);
         br.setCheckin(checkin);
         br.setCheckout(checkout);
         br.setPrice(selectedRoom.getPrice()); // Giá gốc
-        br.setSaleoff(0);
+        br.setSaleoff(sellOff); // <-- SỬ DỤNG GIÁ TRỊ MỚI
         br.setChecked(false); // Chưa checkin
 
         // Thêm vào booking (giỏ hàng)
         booking.getBookedRoom().add(br);
-        // Thêm vào bảng bên phải
+        
+        // Thêm vào bảng bên phải (với cột sellOff)
         modelSelected.addRow(new Object[]{
-            selectedRoom.getId(), selectedRoom.getName(), selectedRoom.getType(), selectedRoom.getPrice()
+            selectedRoom.getId(), 
+            selectedRoom.getName(), 
+            selectedRoom.getPrice(),
+            sellOff // <-- Thêm giá trị mới
         });
         
         // Xóa khỏi danh sách và bảng bên trái
         listAvailableRoom.remove(row);
         modelAvailable.removeRow(row);
     }
+    // ====================== KẾT THÚC SỬA ĐỔI (3) ======================
     
     private void actionRemoveRoom() {
         int row = tblSelectedRooms.getSelectedRow();
@@ -246,17 +274,14 @@ public class SearchFreeRoomFrm extends JFrame implements ActionListener {
             return;
         }
 
-        // Lấy BookedRoom từ giỏ hàng
         BookedRoom br = booking.getBookedRoom().get(row);
         Room room = br.getRoom();
         
-        // Thêm lại vào danh sách và bảng bên trái
         listAvailableRoom.add(room);
         modelAvailable.addRow(new Object[]{
             room.getId(), room.getName(), room.getType(), room.getPrice(), room.getDes()
         });
         
-        // Xóa khỏi giỏ hàng (booking) và bảng bên phải
         booking.getBookedRoom().remove(row);
         modelSelected.removeRow(row);
     }
@@ -267,7 +292,6 @@ public class SearchFreeRoomFrm extends JFrame implements ActionListener {
             return;
         }
         
-        // Chuyển sang màn hình tìm kiếm khách hàng
         (new SearchClientFrm(user, booking, SearchFreeRoomFrm.this, homeFrame)).setVisible(true);
         setVisible(false);
     }
